@@ -3,3 +3,4 @@
 include/
 .history/
 .venv/
+.idea/
