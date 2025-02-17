@@ -1,0 +1,29 @@
+.analog-stick-container {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+}
+
+.analog-stick-bounds {
+    width: 100%;
+    height: 100%;
+    border: 2px solid #333;
+    border-radius: 10px;
+    position: relative;
+}
+
+.analog-stick {
+    width: 50px;
+    height: 50px;
+    background: #007bff;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+}
+
+.analog-stick:active {
+    cursor: grabbing;
+}
