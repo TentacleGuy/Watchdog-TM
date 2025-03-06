@@ -7,7 +7,8 @@ import requests
 csp = {
     'default-src': "'self' https://maschinenraum-duisburg.de",
     'frame-ancestors': "'self' https://maschinenraum-duisburg.de",
-    'script-src': "'self' https://maschinenraum-duisburg.de https://kamerakarl.maschinenraum-duisburg.de"
+    'script-src': "'self' https://maschinenraum-duisburg.de",
+    'media-src': "'self' https://maschinenraum-duisburg.de"
 }
 #Variablen definieren
 robot_data = {
@@ -20,7 +21,7 @@ Talisman(app, content_security_policy=csp)
 #Startseite
 @app.route('/')
 def index():
-    global
+    global robot_data
     return render_template('index.html', robot_data=robot_data)
 
 #Anmelden des ESP an  Server

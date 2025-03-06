@@ -4,8 +4,8 @@
 #include "secrets.h"  //optional
 
 //Serial Pins
-#define RX1 15
-#define TX1 16
+#define RX1 19
+#define TX1 20
 
 unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
 int messageInterval = 4000;             //intervall in ms	 DEBUG
@@ -24,14 +24,14 @@ const char* serverURL = "http://<SERVER_IP>:5000/data";
 
 
 void sendMessage(String message) {
-  Serial1.println(message);
+  Serial2.println(message);
   Serial.print("ESP sendet an Mega: ");                     //debug
   Serial.println(message);                                  //debug
 }
 
 String receiveMessage() {
-  if (Serial1.available()) {
-    String message = Serial1.readStringUntil('\n');
+  if (Serial2.available()) {
+    String message = Serial2.readStringUntil('\n');
     Serial.print("Esp empfängt von Mega: ");                //debug
     Serial.println(message);                                //debug
     return message;
@@ -60,7 +60,7 @@ bool connectToWiFi() {
 
 void setup() {
   Serial.begin(115200);   //Verbindung zum Computer
-  Serial1.begin(9600);    //Verbindungs zum Mega
+  Serial2.begin(9600);    //Verbindungs zum Mega
   connectToWiFi();
 }
 
