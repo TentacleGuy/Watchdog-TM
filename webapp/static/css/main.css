@@ -1,2 +1,10 @@
 @import "controls.css";
 
+body::before {
+	z-index: 0;
+	opacity: 1;
+}
+.content{
+    z-index: 1;
+    position: relative;
+}
