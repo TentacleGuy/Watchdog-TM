@@ -31,14 +31,14 @@ void setup() {
 }
 
 void loop() {
-  /*-TESTSendungen start-*/
+  /*-TESTSendungen start-
   if(millis() - lastMessageSent > messageInterval){
     lastMessageSent = millis(); 
     unsigned long int elapsedTime = lastMessageSent/1000;
     messageToESP  = "Hi ESP32, I started " + String(elapsedTime) + " seconds ago";
     sendMessage(messageToESP);  
   }
-  /*-TESTSendungen ende- */
+  //-TESTSendungen ende- */
 
   messageFromESP = receiveMessage();
 }

@@ -16,17 +16,19 @@ String messageToMega  = "";
 unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
 int messageInterval = 4000;             //intervall in ms	 DEBUG
 
-bool lightStatus = false;
+unsigned long lastHeartbeat = 0;
+const unsigned long heartbeatInterval = 5000; // 5 Sekunden
+
+bool lightOn = false;
 
 // WLAN-Zugangsdaten
 const char* ssid = WIFI_SSID;   //Hier die SSID(Netzwerkname) vom Router eintragen
 const char* password = WIFI_PASSWORD; //Hier dein WLAN Passwort eintragen
 
 //SEerver
-const String serverURL = SERVER_URL;
-const String registerURL = SERVER_URL + "/register";
-AsyncWebServer server(80);
-
+const char* serverURL = SERVER_URL;
+const String heartbeatURL = String(SERVER_URL) + "/heartbeat";
+AsyncWebServer server(8080);
 
 void sendMessage(String message) {
   Serial2.println(message);
@@ -63,62 +65,24 @@ bool connectToWiFi() {
   return false;
 }
 
-//Beim Webserver registrieren
-void registerWithServer() {
+void sendHeartbeat() {
   if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.begin(registerURL);
-      int httpResponseCode = http.POST("");
-      if (httpResponseCode > 0) {
-          Serial.println("IP-Adresse erfolgreich registriert");
-          String response = http.getString();
-          Serial.println(response);
-      } else {
-          Serial.println("Fehler beim Senden der IP-Adresse");
-      }
-      http.end();
-  } else {
-      Serial.println("WiFi nicht verbunden");
+    HTTPClient http;
+    http.begin(heartbeatURL);
+    // Wir senden nur einen leeren Body
+    int httpCode = http.POST("");
+    if (httpCode > 0) {
+      Serial.printf("Heartbeat an Server, Code: %d\n", httpCode);
+      String payload = http.getString();
+      Serial.println(payload);
+    } else {
+      Serial.printf("Fehler beim Heartbeat: %d\n", httpCode);
+    }
+    http.end();
   }
 }
 
 void startServer() {
-  server.on("/status", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "application/json", "{\"status\": \"online\"}");
-  });
-
-  // Befehls-Endpunkt
-  server.on("/command", WebRequestMethod::HTTP_POST, [](AsyncWebServerRequest *request){
-    if (request->hasParam("command", true)) {
-      String command = request->getParam("command", true)->value();
-      Serial.println("Empfangener Befehl: " + command);
-
-      if (command == "light_on") {
-          digitalWrite(LED_BUILTIN, HIGH);
-          lightStatus = true;
-          request->send(200, "application/json", "{\"message\": \"Licht an\"}");
-      } else if (command == "light_off") {
-          digitalWrite(LED_BUILTIN, LOW);
-          lightStatus = false;
-          request->send(200, "application/json", "{\"message\": \"Licht aus\"}");
-      } else {
-          // Befehl an den Arduino Mega senden
-          sendMessage(command);
-          delay(100);  // Kurze Pause, damit der Mega antworten kann
-          String response = receiveMessage();
-          
-          // Antwort an den Webserver senden
-          if (response.length() > 0) {
-              request->send(200, "application/json", "{\"message\": \"" + response + "\"}");
-          } else {
-              request->send(500, "application/json", "{\"message\": \"Keine Antwort vom Mega\"}");
-          }
-      }
-    } else {
-        request->send(400, "application/json", "{\"message\": \"Kein Befehl erhalten\"}");
-    }
-  });
-
   server.begin();
 }
 
@@ -130,7 +94,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, LOW);  // Licht aus
 
   connectToWiFi();
-  registerWithServer();
+  //registerWithServer();
 
   startServer();
 }
@@ -143,8 +107,11 @@ void loop() {
     messageToMega  = "Hi ESP32, I started " + String(elapsedTime) + " seconds ago";
     sendMessage(messageToMega);  
   }
-  -TESTSendungen ende- */
-
+  //-TESTSendungen ende-*/
+  if (millis() - lastHeartbeat >= heartbeatInterval) {
+    lastHeartbeat = millis();
+    sendHeartbeat();
+  }
   messageFromMega = receiveMessage();
 }
 
