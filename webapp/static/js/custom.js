@@ -27,16 +27,33 @@ function pollRobotStatus() {
   }
 
   function toggleLight(){
-    fetch('/toggle_light', {method:'POST'})
-      .then(r => r.json())
+    fetch('/send_command', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        command: 'toggle_light'
+      })
+    })
+      .then(response => {
+        // First check if the response is ok
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
       .then(data => {
-        console.log('Toggle Light Antwort:', data);
+        console.log('Command response:', data);
         if(data.status === 'success'){
           updateUI(data.light_status);
+        } else {
+        console.error('Command failed:', data.message);
         }
       })
       .catch(err => console.error('Fehler:', err));
   }
+  
 
   function updateUI(lightOn){
     const elem = document.getElementById('robot_light');

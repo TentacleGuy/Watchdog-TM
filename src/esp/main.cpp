@@ -98,24 +98,29 @@ void startServer() {
 
 void endpoints(){
   server.on("/command", HTTP_POST, [](AsyncWebServerRequest* request){
-    Serial.println("Empf. Befehl: " + request->getParam("command", true)->value());
+    Serial.println("Empf. Befehl: " + request->getParam("command", true)->value());   //DEBUG
     if (request->hasParam("command", true)) {
       String cmd = request->getParam("command", true)->value();
       Serial.println("Empf. Befehl: " + cmd);
 
-      if(cmd == "light_on"){
-        digitalWrite(LED_BUILTIN, HIGH);
-        lightOn = true;
-        request->send(200, "application/json", "{\"message\":\"Licht an\"}");
+      if(cmd == "toggle_light"){
+        lightOn = !lightOn;
+        digitalWrite(LED_BUILTIN, lightOn ? HIGH : LOW);
+        request->send(200, "application/json", "{\"message\":\"Licht = " + String(lightOn) + "\"}");
       }
-      else if(cmd == "light_off"){
-        digitalWrite(LED_BUILTIN, LOW);
-        lightOn = false;
-        request->send(200, "application/json", "{\"message\":\"Licht aus\"}");
+      else if(cmd == "hello"){
+        request->send(200, "application/json", "{\"message\":\"Hey, du hast mir einen leeren Befehl gesendet.\"}");
       }
       else {
         request->send(400, "application/json", "{\"message\":\"Unbekannter Befehl\"}");
       }
+
+      robotDataJson = 
+            String("{\"light_on\":") + (lightOn ? "true" : "false") 
+          + String(", \"battery\":") + batteryLevel 
+          + String("}");
+
+      sendHeartbeat();
     } else {
       request->send(400, "application/json", "{\"message\":\"Kein command\"}");
     }

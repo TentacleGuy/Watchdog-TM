@@ -69,28 +69,39 @@ def robot_status():
 
 
 #TODO: Toggle Light funktion verkleinern -> command: toggle_light an ESP evtl Funktion umschreiben für send Command(command)....
-@app.route("/toggle_light", methods=["POST"])
-def toggle_light():
+@app.route("/send_command", methods=["POST"])
+def send_command():
     global robot_data
+
     # 1. Prüfe, ob ESP erreichbar
     if not robot_data["online"] or not robot_data["ip"]:
         return jsonify({"status":"error","message":"Roboter offline"}), 400
 
-    # 2. Neuer Status = Gegenteil vom aktuellen
-    new_status = not robot_data["light_status"]
-    command = "light_on" if new_status else "light_off"
-
-    # 3. POST an ESP
+    # Get command from request, default to toggle_light if not specified
+    data = request.get_json()  # Use get_json() to properly parse JSON content
+    if data is None:
+        return jsonify({"status":"error","message":"Invalid JSON"}), 400
+        
+    command = data.get("command", "toggle_light")
     try:
         url = f"http://{robot_data['ip']}:8080/command"
         resp = requests.post(url, data={"command": command}, timeout=3)
-        msg = resp.json().get("message","")
+        
         if resp.status_code == 200:
-            # 4. Lokal updaten
-            robot_data["light_status"] = new_status
-            return jsonify({"status":"success","light_status":new_status,"message":msg}), 200
+            try:
+                response_data = resp.json()
+                msg = response_data.get("message", "")
+                
+                # If we get updated light status back, update local state
+                if "light_status" in response_data:
+                    robot_data["light_status"] = response_data["light_status"]
+                    
+                return jsonify({"status":"success", "message":msg}), 200
+            except:
+                # If response cannot be parsed as JSON
+                return jsonify({"status":"error","message":"Invalid response from ESP"}), 500
         else:
-            return jsonify({"status":"error","message":"ESP-Fehler: " + msg}), 500
+            return jsonify({"status":"error","message":"ESP-Fehler: " + resp.text}), 500
     except requests.exceptions.RequestException as e:
         return jsonify({"status":"error","message":str(e)}), 500
 
