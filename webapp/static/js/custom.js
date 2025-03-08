@@ -25,6 +25,27 @@ function pollRobotStatus() {
         document.getElementById('robot_status').textContent = 'OFFLINE';
       });
   }
+
+  function toggleLight(){
+    fetch('/toggle_light', {method:'POST'})
+      .then(r => r.json())
+      .then(data => {
+        console.log('Toggle Light Antwort:', data);
+        if(data.status === 'success'){
+          updateUI(data.light_status);
+        }
+      })
+      .catch(err => console.error('Fehler:', err));
+  }
+
+  function updateUI(lightOn){
+    const elem = document.getElementById('robot_light');
+    elem.textContent = lightOn ? 'AN' : 'AUS';
+
+    // Optional: Button-Farbe anpassen
+    const btn = document.getElementById('light-btn');
+    btn.style.backgroundColor = lightOn ? 'yellow' : 'inherit';
+  }
   
   document.addEventListener('DOMContentLoaded', () => {
     pollRobotStatus();

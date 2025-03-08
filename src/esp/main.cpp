@@ -3,7 +3,7 @@
 #include <HTTPClient.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
-#include "settings.h"  //optional
+#include "settings.h"  
 
 //Serial Pins
 #define RX1 19
@@ -14,21 +14,29 @@ String messageToMega  = "";
 
 //Timer
 unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
-int messageInterval = 4000;             //intervall in ms	 DEBUG
+const int messageInterval = 4000;             //intervall in ms	 DEBUG
 
 unsigned long lastHeartbeat = 0;
-const unsigned long heartbeatInterval = 5000; // 5 Sekunden
+const int heartbeatInterval = 5000; // 5 Sekunden
 
+//Status-variablen
 bool lightOn = false;
+int batteryLevel = 34;
+
 
 // WLAN-Zugangsdaten
-const char* ssid = WIFI_SSID;   //Hier die SSID(Netzwerkname) vom Router eintragen
-const char* password = WIFI_PASSWORD; //Hier dein WLAN Passwort eintragen
+const char* ssid = WIFI_SSID;   
+const char* password = WIFI_PASSWORD; 
 
-//SEerver
-const char* serverURL = SERVER_URL;
-const String heartbeatURL = String(SERVER_URL) + "/heartbeat";
-AsyncWebServer server(8080);
+//Server
+const char* serverURL = SERVER_URL; //Flask Server
+const String heartbeatURL = String(SERVER_URL) + "/heartbeat";  //Flask heartbeat endpoint 
+String robotDataJson = 
+                String("{\"light_on\":") + (lightOn ? "true" : "false") 
+              + String(", \"battery\":") + batteryLevel 
+              + String("}");  //JSON-String der Daten für übermittlung an flask vorbereiten
+
+AsyncWebServer server(8080);  //Server auf ESP für das Empfangen von Befehlen
 
 void sendMessage(String message) {
   Serial2.println(message);
@@ -69,14 +77,16 @@ void sendHeartbeat() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(heartbeatURL);
-    // Wir senden nur einen leeren Body
-    int httpCode = http.POST("");
+    http.addHeader("Content-Type", "application/json");
+    int httpCode = http.POST(robotDataJson); //robotData mit Heartbeat senden
     if (httpCode > 0) {
-      Serial.printf("Heartbeat an Server, Code: %d\n", httpCode);
-      String payload = http.getString();
-      Serial.println(payload);
+      /*DEBUG
+      Serial.println("Heartbeat an Server, Code: " + httpCode);
+      String response = http.getString();
+      Serial.println("Serverantwort: " + response); 
+      */
     } else {
-      Serial.printf("Fehler beim Heartbeat: %d\n", httpCode);
+      Serial.println("Fehler beim Heartbeat: " + httpCode);
     }
     http.end();
   }
@@ -86,17 +96,46 @@ void startServer() {
   server.begin();
 }
 
+void endpoints(){
+  server.on("/command", HTTP_POST, [](AsyncWebServerRequest* request){
+    Serial.println("Empf. Befehl: " + request->getParam("command", true)->value());
+    if (request->hasParam("command", true)) {
+      String cmd = request->getParam("command", true)->value();
+      Serial.println("Empf. Befehl: " + cmd);
+
+      if(cmd == "light_on"){
+        digitalWrite(LED_BUILTIN, HIGH);
+        lightOn = true;
+        request->send(200, "application/json", "{\"message\":\"Licht an\"}");
+      }
+      else if(cmd == "light_off"){
+        digitalWrite(LED_BUILTIN, LOW);
+        lightOn = false;
+        request->send(200, "application/json", "{\"message\":\"Licht aus\"}");
+      }
+      else {
+        request->send(400, "application/json", "{\"message\":\"Unbekannter Befehl\"}");
+      }
+    } else {
+      request->send(400, "application/json", "{\"message\":\"Kein command\"}");
+    }
+  });
+
+  server.begin();
+}
+
 void setup() {
   Serial.begin(115200);   //Verbindung zum Computer
   Serial2.begin(9600);    //Verbindungs zum Mega
   
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);  // Licht aus
+  pinMode(LED_BUILTIN, OUTPUT);    //test lich
+  digitalWrite(LED_BUILTIN, LOW);  //
 
   connectToWiFi();
-  //registerWithServer();
 
   startServer();
+
+  endpoints();
 }
 
 void loop() {
