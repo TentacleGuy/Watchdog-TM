@@ -4,3 +4,4 @@ include/
 .history/
 .venv/
 .idea/
+node_modules/
