@@ -9,6 +9,8 @@ const io = socketIo(server);
 
 const debugMode = true;
 let espSocketId = null;
+const browserClients = new Set(); // Track browser clients
+
 
 // Statische Dateien
 app.use(express.static(path.join(__dirname, "public")));
@@ -23,8 +25,9 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
     console.log("A client connected with ID:", socket.id);
     console.log("New connection from:", socket.handshake.address);
-    console.log("Socket ID:", socket.id);
-    console.log("Headers:", JSON.stringify(socket.handshake.headers, null, 2));
+
+      // By default, assume it's a browser client
+      browserClients.add(socket.id);
 
     // Log all incoming events
     if (debugMode) {
@@ -44,25 +47,35 @@ io.on("connection", (socket) => {
         console.log("ESP connected with ID:", socket.id);
         espSocketId = socket.id;
         console.log("Updated ESP Socket ID:", espSocketId);
+
+        // Remove from browser clients list since it's the ESP
+        browserClients.delete(socket.id);
+
         
         // Store the ESP's IP address
         const espIP = socket.handshake.address;
         console.log("ESP IP:", espIP);
-        // Broadcast the ESP's IP to all clients
-        io.emit("esp_ip", espIP);
     });
     
     // Handle robot data from ESP
     socket.on("message", (data) => {
-        console.log("Data received:", data);    });
+        console.log("Data received from ESP:", data);    
+        // Only forward to browser clients, not back to ESP
+        browserClients.forEach(clientId => {
+            io.to(clientId).emit("robot_data", data);
+        });
+    });
 
     // Add a direct command handler to handle different event formats
     socket.on("command", (data) => {
-        console.log("Direct command received:", data);
+        console.log("Direct command received from browser:", data);
         if (espSocketId) {
-            io.to(espSocketId).emit("command", data);
+            //io.to(espSocketId).emit("command", data);
+            const socketMessage = `42["command","${data}"]`;
+            // Send raw message to ESP
+            io.sockets.sockets.get(espSocketId).send(socketMessage);
         } else {
-            io.emit("command", data);
+            console.log("ESP not found");
         }
     });
     
@@ -74,15 +87,16 @@ io.on("connection", (socket) => {
             console.log("ESP has disconnected, resetting ESP Socket ID");
             espSocketId = null;
         }
+        browserClients.delete(socket.id);
     });
 });
 
-// Add this to catch raw WebSocket messages
-io.engine.on("connection", (rawSocket) => {
+// Add this to catch raw WebSocket messages DEBUG
+/*io.engine.on("connection", (rawSocket) => {
     rawSocket.on("data", (data) => {
       console.log("Raw socket data:", data.toString());
     });
-  });
+  });*/
   
 
 const PORT = process.env.PORT || 3000;

@@ -1,6 +1,5 @@
 // Connect to the WebSocket server
 const socket = io();
-let espSocketId = null;
 
 // Handle connection status
 socket.on('connect', () => {
@@ -15,13 +14,17 @@ socket.on('esp_ip', (ip) => {
 
 // Handle robot data
 socket.on('robot_data', (data) => {
-    console.log('Received robot data:', data);
+    //console.log('Received robot data:', data);
     
     // Update the status display
     document.getElementById('robot_status').textContent = 'online';
     
     // Update light status
     document.getElementById('robot_light').textContent = data.light ? 'on' : 'off';
+    
+    // Update last seen timestamp
+    const now = new Date();
+    document.getElementById('robot_last_seen').textContent = now.toLocaleTimeString();
     
     // Add battery info if available
     if (data.battery !== undefined) {
@@ -40,13 +43,9 @@ socket.on('robot_data', (data) => {
 
 // Function to toggle the light
 function toggleLight() {
-      //socket.emit('toggle_light');
-      console.log("Light toggle requested");
-      if (espSocketId) {
-        console.log("ESP Socket ID found, sending command to ESP");
-        socket.to(espSocketId).emit("command", "toggleLight");
-      } else {
-        console.log("ESP Socket ID not found, broadcasting command");
-        socket.emit("command", "toggleLight"); // Fallback to broadcast
-      }
+    socket.emit("command", "toggleLight");
 }
+
+socket.on('disconnect', () => {
+    document.getElementById('robot_status').textContent = 'offline';
+});

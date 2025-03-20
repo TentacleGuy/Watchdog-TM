@@ -23,6 +23,10 @@ const int heartbeatInterval = 5000; // 5 Sekunden
 
 unsigned long lastPing = 0;
 
+bool needsReconnection = false;
+unsigned long lastReconnectionAttempt = 0;
+const int reconnectionInterval = 5000;
+
 // WLAN-Zugangsdaten
 const char* ssid = WIFI_SSID;   
 const char* password = WIFI_PASSWORD; 
@@ -97,7 +101,6 @@ bool toggleLight() {
 void sendToServer() {
   String jsonString;
   serializeJson(robotData, jsonString);
-  // Socket.IO format: "42[\"event_name\",data]"
   String socketMessage = "42[\"message\",";
   socketMessage += jsonString;
   socketMessage += "]";
@@ -124,6 +127,22 @@ void onMessageCallback(WebsocketsMessage message) {
   }
 }
 
+bool connectToServer() {
+  // Connect to server
+  bool connected = client.connect(websockets_server_host, websockets_server_port, socketio_path);
+  if(connected) {
+      // Send Socket.IO handshake
+      client.send("40");  // Socket.IO v4 connect packet
+      // Identify as ESP
+      client.send("42[\"connect_esp\",{}]");
+      return true;
+  } else {
+    Serial.println("Not Connected!");
+    return false;
+  }
+}
+
+
 void onEventsCallback(WebsocketsEvent event, String data) {
   Serial.println("neues events:");
   Serial.print("Data: ");
@@ -131,14 +150,19 @@ void onEventsCallback(WebsocketsEvent event, String data) {
 
   if(event == WebsocketsEvent::ConnectionOpened) {
       Serial.println("Connnection Opened");
+      needsReconnection = false;
   } else if(event == WebsocketsEvent::ConnectionClosed) {
       Serial.println("Connnection Closed");
+      needsReconnection = true;
+
   } else if(event == WebsocketsEvent::GotPing) {
       Serial.println("Got a Ping!");
   } else if(event == WebsocketsEvent::GotPong) {
       Serial.println("Got a Pong!");
   }
 }
+
+
 
 void setupWebsockets() {
 
@@ -149,16 +173,7 @@ void setupWebsockets() {
   client.onEvent(onEventsCallback);
 
   // Connect to server
-  bool connected = client.connect(websockets_server_host, websockets_server_port, socketio_path);
-  
-  if(connected) {
-      // Send Socket.IO handshake
-      client.send("40");  // Socket.IO v4 connect packet
-      // Identify as ESP
-      client.send("42[\"connect_esp\",{}]");
-  } else {
-    Serial.println("Not Connected!");
-  }
+  connectToServer();
 
   // Send a ping
   client.ping();
@@ -173,9 +188,23 @@ void setup() {
 }
 
 
-
 void loop() {
   client.poll();
+
+  if (needsReconnection) {
+    unsigned long currentTime = millis();
+    if (currentTime - lastReconnectionAttempt >= reconnectionInterval) {
+      lastReconnectionAttempt = currentTime;
+      
+      Serial.println("Attempting to reconnect...");
+      if (connectToServer()) {
+        Serial.println("Reconnected successfully!");
+        needsReconnection = false;
+      } else {
+        Serial.println("Reconnection failed, will try again later");
+      }
+    }
+  }
 
   if (millis() - lastHeartbeat >= heartbeatInterval) {
     lastHeartbeat = millis();
