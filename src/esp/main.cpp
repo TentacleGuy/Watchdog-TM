@@ -94,8 +94,6 @@ bool toggleLight() {
   return false;
 }
 
-
-
 void sendToServer() {
   String jsonString;
   serializeJson(robotData, jsonString);

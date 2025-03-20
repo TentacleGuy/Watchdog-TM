@@ -36,10 +36,15 @@ io.on("connection", (socket) => {
         };
     }
 
-    // Handle ESP connection
+    console.log("Current ESP Socket ID:", espSocketId);
+
+
+   // Handle ESP connection - ensure this is working
     socket.on("connect_esp", () => {
         console.log("ESP connected with ID:", socket.id);
         espSocketId = socket.id;
+        console.log("Updated ESP Socket ID:", espSocketId);
+        
         // Store the ESP's IP address
         const espIP = socket.handshake.address;
         console.log("ESP IP:", espIP);
@@ -49,20 +54,26 @@ io.on("connection", (socket) => {
     
     // Handle robot data from ESP
     socket.on("message", (data) => {
-        console.log("Data received:", data);
-        // No need to parse, data is already an object
-        //io.emit("robot_data", data);
-    });
+        console.log("Data received:", data);    });
 
-    // Handle light toggle command from web clients
-    socket.on("toggle_light", () => {
-        console.log("Light toggle requested");
-        console.log(io.emit.data);
-        io.emit("command", "toggleLight"); // Fallback to broadcast
+    // Add a direct command handler to handle different event formats
+    socket.on("command", (data) => {
+        console.log("Direct command received:", data);
+        if (espSocketId) {
+            io.to(espSocketId).emit("command", data);
+        } else {
+            io.emit("command", data);
+        }
     });
     
-    socket.on("disconnect", () => {
+   // Track disconnections more carefully
+   socket.on("disconnect", () => {
         console.log("Client disconnected:", socket.id);
+        // If the ESP disconnects, reset its socket ID
+        if (socket.id === espSocketId) {
+            console.log("ESP has disconnected, resetting ESP Socket ID");
+            espSocketId = null;
+        }
     });
 });
 
