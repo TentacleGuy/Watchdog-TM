@@ -5,3 +5,6 @@ include/
 .venv/
 .idea/
 node_modules/
+
+webapp/public/static/src/
+

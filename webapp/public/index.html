@@ -39,10 +39,36 @@
                                 Last seen: <span id="robot_last_seen">Never</span>
                             </div>
                             <div>
-                                status: <span id="robot_status">offline</span>
+                                Status: <span class="status-indicator status-offline"></span><span id="robot_status">offline</span>
                             </div> 
                             <div>
-                                light: <span id="robot_light">off</span>
+                                <span id="light-toggle" class="light-button light-off" onclick="toggleLight()">
+                                    <i class="fa-solid fa-lightbulb"></i> Light
+                                </span>
+                            </div>
+                            <div>
+                                Battery: 
+                                <div class="battery-container">
+                                    <div id="battery-level" class="battery-level" style="width: 0%; background-color: #f0506e;"></div>
+                                </div>
+                                <span id="battery-text">0%</span>
+                            </div>
+                        </div>
+                        <!-- Queue information section -->
+                        <div class="queue-info">
+                            <div class="queue-status">
+                                <div id="controller-status">You are not in control</div>
+                                <div id="queue-position" class="hidden">Your position in queue: <span id="position">0</span>/<span id="total-queue">0</span></div>
+                            </div>
+                            
+                            <div class="time-info">
+                                <div id="current-controller-time" class="hidden">Current controller time remaining: <span id="controller-time-left">0</span> minutes</div>
+                                <div id="estimated-wait-time" class="hidden">Estimated wait time: <span id="wait-time">0</span> minutes</div>
+                            </div>
+                            
+                            <div class="queue-buttons">
+                                <button id="join-queue-btn" class="uk-button uk-button-primary">Join Queue</button>
+                                <button id="leave-queue-btn" class="uk-button uk-button-danger hidden">Leave Queue</button>
                             </div>
                         </div>
                     </div>
@@ -85,9 +111,7 @@
                             </div>
                             <div class="uk-width-1-3" >
                                 <div class="uk-margin uk-text-center">
-                                    <a id="light-btn" class="el-content uk-button uk-button-default" href="#" onclick="toggleLight()">
-                                        <i class="fa-solid fa-lightbulb fa-lg"></i>
-                                    </a>
+                            
                                 </div>
                             </div>
                             <div class="uk-width-1-3" >
