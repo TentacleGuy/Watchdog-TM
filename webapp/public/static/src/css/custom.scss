@@ -1,0 +1,70 @@
+body::before {
+	z-index: 0;
+	opacity: 1;
+    background: url("https://maschinenraum-duisburg.de/templates/yootheme_child/images/sterne.gif") repeat;
+}
+.content{
+    z-index: 1;
+    position: relative;
+}
+.robot_data{
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.uk-button {
+	padding: 0 10px;
+    &.controls{
+        aspect-ratio: 1/1;
+        display:flex;
+        justify-content: center;
+        align-items: center;
+        width:40px;
+    }
+}
+
+.analog-stick-container {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+    .analog-stick-bounds {
+        width: 100%;
+        height: 100%;
+        border: 2px solid #333;
+        aspect-ratio: 1/1;
+        border-radius: 50%;
+        position: relative;
+        overflow: hidden;
+        .analog-stick {
+            width: 50px;
+            height: 50px;
+            background: #007bff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            &:active {
+                cursor: grabbing;
+            }
+        }
+    }
+}
+
+#light-toggle{
+    &.light-on{
+        > i{
+            color:yellow;
+        }
+    }
+    &.light-off{
+        > i{
+            color:gray;
+        }
+    }
+}
+.fa-tower-broadcast{
+    color:#007bff;
+}

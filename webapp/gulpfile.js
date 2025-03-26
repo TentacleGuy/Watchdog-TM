@@ -41,7 +41,7 @@ gulp.task('minify-css', function() {
 
 // Handle JS files - copy .min.js directly, process others
 gulp.task('js', function() {
-    gulp.src(srcPath + '/js/*.min.js')
+    gulp.src(srcPath + 'js/*.min.js')
         .pipe(gulp.dest(getOutputPath('js')));
     
     return gulp.src([srcPath + 'js/*.js', '!' + srcPath + 'js/*.min.js'])
