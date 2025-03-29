@@ -49,9 +49,10 @@ void setupRobotData(){
 
   robotData["light"] =  false;
   robotData["battery"] =  34;
+  robotData["motors"] = "0,0,0,0";
 }
 
-//Kommunkations zwischen Mega und ESP
+//Kommunkation zwischen Mega und ESP
 void sendToMega(String message) {
   Serial2.println(message);
   Serial.print("ESP sendet an Mega: ");                     //debug
@@ -115,14 +116,45 @@ void onMessageCallback(WebsocketsMessage message) {
   // Handle Socket.IO ping (code 2)
   if (data == "2") {
     client.send("3");  // Send pong (code 3)
+    return;
   }
   // Handle Socket.IO messages (code 42)
-  else if (data.startsWith("42")) {
+  else  if (data.startsWith("42")) {
     Serial.println("Received Socket.IO message: " + data);
-    // Check for command messages
-    if (data.indexOf("command") > 0 && data.indexOf("toggleLight") > 0) {
-      toggleLight();
-      sendToServer();  // Update the server with new state
+    
+    // Extract event name and payload
+    int firstBracket = data.indexOf('[');
+    int firstComma = data.indexOf(',', firstBracket);
+    
+    if (firstBracket != -1 && firstComma != -1) {
+      // Extract the event name
+      String eventName = data.substring(firstBracket + 2, firstComma - 1);
+      
+      // Handle specific events directly
+      if (eventName == "toggleLight") {
+        Serial.println("Received toggleLight event");
+        toggleLight();
+        sendToServer();  // Update the server with new state
+      }
+      else if (eventName == "motorcommand") {
+        String jsonString;
+        String payload = data.substring(firstComma + 1, data.lastIndexOf(']'));
+        Serial.println(data);
+        payload.replace("\"", "");
+        robotData["motors"] = payload;
+        Serial.println("Motorcommand received -  payload: " + payload);
+        serializeJson(robotData["motors"], jsonString);
+        sendToMega(payload);
+      }
+
+      else if (eventName == "command") {
+        // Extract the payload
+        String payload = data.substring(firstComma + 1, data.lastIndexOf(']'));
+        // Remove quotes if present
+        payload.replace("\"", "");
+        Serial.println("Command received - payload: " + payload);
+
+      }
     }
   }
 }
@@ -144,7 +176,7 @@ bool connectToServer() {
 
 
 void onEventsCallback(WebsocketsEvent event, String data) {
-  Serial.println("neues events:");
+  Serial.println("neues event:");
   Serial.print("Data: ");
   Serial.println(data);
 

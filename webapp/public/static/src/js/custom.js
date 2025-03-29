@@ -9,21 +9,21 @@ let controllerTimeInterval = null;
 let estimatedWaitTime = 0;
 
 // Connect to the WebSocket server
-const socket = io();
+window.sharedSocket = io();
 
 // Handle connection status
-socket.on('connect', () => {
+window.sharedSocket.on('connect', () => {
     console.log('Connected to server');
 });
 
 // Handle ESP IP address
-socket.on('esp_ip', (ip) => {
+window.sharedSocket.on('esp_ip', (ip) => {
     console.log('Received ESP IP:', ip);
     document.getElementById('robot_ip').textContent = ip;
 });
 
 // Handle robot data
-socket.on('robot_data', (data) => {
+window.sharedSocket.on('robot_data', (data) => {
     //console.log('Received robot data:', data);
     
     // Update the status display
@@ -47,7 +47,7 @@ socket.on('robot_data', (data) => {
 });
 
 // Handle queue position updates
-socket.on('queuePosition', (position) => {
+window.sharedSocket.on('queuePosition', (position) => {
     console.log('Queue position:', position);
     inQueue = true;
     queuePosition = position;
@@ -55,14 +55,14 @@ socket.on('queuePosition', (position) => {
 });
 
 // Handle queue total updates
-socket.on('queueTotal', (total) => {
+window.sharedSocket.on('queueTotal', (total) => {
     console.log('Queue total:', total);
     totalInQueue = total;
     updateQueueDisplay();
 });
 
 // Handle controller status
-socket.on('controllerStatus', (status) => {
+window.sharedSocket.on('controllerStatus', (status) => {
     console.log('Controller status:', status);
     isController = status.isController;
     controllerTimeLeft = status.timeLeft;
@@ -82,7 +82,7 @@ socket.on('controllerStatus', (status) => {
 });
 
 // Handle disconnect
-socket.on('disconnect', () => {
+window.sharedSocket.on('disconnect', () => {
     updateOnlineStatus(false);
     
     // Clear intervals
@@ -95,23 +95,25 @@ socket.on('disconnect', () => {
 
 // Join queue
 function joinQueue() {
-    socket.emit("joinQueue");
+    window.sharedSocket.emit("joinQueue");
     inQueue = true;
     updateQueueDisplay();
 }
 
 // Leave queue
 function leaveQueue() {
-    socket.emit("leaveQueue");
+    window.sharedSocket.emit("leaveQueue");
     inQueue = false;
     updateQueueDisplay();
 }
 
 // Function to toggle the light
-function toggleLight() {
-    socket.emit("command", "toggleLight");
+function toggleLight(event) {
+    if (event) {
+        event.stopPropagation(); // Prevent event from bubbling up
+    }
+    window.sharedSocket.emit("toggleLight");
 }
-
 // Update battery display
 function updateBatteryDisplay(level) {
     const batteryText = document.getElementById('battery-text');
@@ -226,8 +228,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up queue button event listeners
     document.getElementById('join-queue-btn').addEventListener('click', joinQueue);
     document.getElementById('leave-queue-btn').addEventListener('click', leaveQueue);
-    document.getElementById('light-toggle').addEventListener('click', toggleLight);
-    
+    document.getElementById('light-toggle').addEventListener('click', (event) => {
+        toggleLight(event);
+    });    
     // Initialize displays
     updateOnlineStatus(false);
     updateBatteryDisplay(0);

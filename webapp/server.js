@@ -80,19 +80,12 @@ io.on("connection", (socket) => {
     io.to("browserRoom").emit("robot_data", data);
   });
 
-  // Add a direct command handler to handle different event formats
-  socket.on("command", (data) => {
-    console.log("Emitting data from " , socket.id , " to ESP:", data);
 
-    if (socket.id !== activeController) {
-      console.log("NICHT aktiver Controller - Command wird ignoriert");
-      return;
-    }
-    if (espSocketId) {
-      const socketMessage = `42["command","${data}"]`;
-      io.to("espRoom").emit("message", socketMessage);
-    }
-  });
+  // Use the handleCommand function for various command types
+  socket.on("command", (data) => handleCommand(socket, "command", data));
+  socket.on("motorcommand", (data) => handleCommand(socket, "motorcommand", data));
+  socket.on("toggleLight", () => handleCommand(socket, "toggleLight", true));
+
 
   //Controlle in Warteschlange enfügen, falls noch nicht vorhanden
   socket.on("joinQueue", () => {
@@ -180,6 +173,21 @@ io.on("connection", (socket) => {
   });
 });
 
+// Create a reusable function that handles any command type
+function handleCommand(socket, commandType, data) {
+  if (socket.id !== activeController) {
+    console.log(`NICHT aktiver Controller - ${commandType} wird ignoriert`);
+    console.log("Aktiver Controller: ", activeController, " socket.id: ", socket.id);
+    return;
+  }
+  
+  if (espSocketId) {
+    // Send the command directly to the ESP with the proper event type
+    io.to("espRoom").emit(commandType, data);
+  } else {
+    console.log("No ESP connected.");
+  }
+}
 
 // Calculate time left for current controller
 function getControllerTimeLeft() {
