@@ -69,7 +69,7 @@ class AnalogStick {
         this.stick.style.left = '50%';
         this.stick.style.top = '50%';
         // Stop-Befehl senden
-        this.sendMotorCommand(0, 0, null, null);
+        this.sendMotorCommand(0, 0, 0, 0);
         // Canvas leeren
         if (this.ctx) {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -104,141 +104,110 @@ class AnalogStick {
         const now = Date.now();
         if (now - this.lastSentTime < this.updateInterval) return;
         this.lastSentTime = now;
-
-        // v negativ, damit "nach oben" gezeichnet wird, wenn Y positiv ist
-        const v = -normalizedY * this.MAX_SPEED;
-        // Drehgeschwindigkeit unverändert
-        const omega = normalizedX * this.MAX_TURN_RATE;
-
-        // Motorwerte (Differentialantrieb)
-        const leftMotor = v - omega * (this.WHEEL_BASE / 2);
-        const rightMotor = v + omega * (this.WHEEL_BASE / 2);
-
-        // Zeichne die Pfade (Bögen) für linkes (blau) und rechtes (grün) Rad
-        this.drawTurningPaths(v, omega);
-
-        // (Optional) Berechnung von Pfadradien – hier nicht weiter benötigt
-        let leftPfad = null, rightPfad = null;
-        if (Math.abs(omega) > 0.01) {
-            const R_center = Math.abs(v / omega);
-            const icrX = (omega > 0)
-                ? this.robotX + R_center * this.canvasScale
-                : this.robotX - R_center * this.canvasScale;
-            const icrY = this.robotY;
-            const leftWheelX = this.robotX - (this.WHEEL_BASE / 2) * this.canvasScale;
-            const leftWheelY = this.robotY;
-            const rightWheelX = this.robotX + (this.WHEEL_BASE / 2) * this.canvasScale;
-            const rightWheelY = this.robotY;
-            leftPfad = Math.hypot(leftWheelX - icrX, leftWheelY - icrY) / this.canvasScale;
-            rightPfad = Math.hypot(rightWheelX - icrX, rightWheelY - icrY) / this.canvasScale;
+        
+        // Berechne die Auslenkung (Distance) des Sticks
+        const distance = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+        const DEADZONE = 0.1;
+        if (distance < DEADZONE) {
+            this.sendMotorCommand(0, 0);
+            if (this.ctx) this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            return;
         }
-
-        // Sende den Befehl im Arduino-kompatiblen Format
-        this.sendMotorCommand(leftMotor, rightMotor, leftPfad, rightPfad);
+        // Multiplier: 0 in der Mitte, 1 am Rand
+        const multiplier = Math.min(distance, 1);
+    
+        // Winkel in Grad berechnen – 0° entspricht oben, Winkel steigt im Uhrzeigersinn
+        let angleDeg = Math.atan2(normalizedX, -normalizedY) * (180 / Math.PI);
+        if (angleDeg < 0) angleDeg += 360;
+    
+        let leftSpeed = 0;
+        let rightSpeed = 0;
+        const MAX = 255;
+        const speedExponent = 2; // Hier kannst du den Exponenten anpassen
+    
+        if (angleDeg >= 0 && angleDeg < 90) {
+            // Vorwärts, Rechtsabbiegen: linker Motor fest, rechter wird exponentiell von 255 (bei 0°) auf 0 (bei 90°) reduziert.
+            leftSpeed = MAX;
+            rightSpeed = MAX * Math.pow(1 - angleDeg / 90, speedExponent);
+        } else if (angleDeg >= 90 && angleDeg < 180) {
+            // Rückwärts, Rechtsabbiegen: linker Motor fest, rechter steigt exponentiell von 0 (bei 90°) auf 255 (bei 180°).
+            leftSpeed = MAX;
+            rightSpeed = MAX * Math.pow((angleDeg - 90) / 90, speedExponent);
+            leftSpeed = -leftSpeed;
+            rightSpeed = -rightSpeed;
+        } else if (angleDeg >= 180 && angleDeg < 270) {
+            // Rückwärts, Linksabbiegen: rechter Motor fest, linker wird exponentiell von 255 (bei 180°) auf 0 (bei 270°) reduziert.
+            rightSpeed = MAX;
+            leftSpeed = MAX * Math.pow(1 - (angleDeg - 180) / 90, speedExponent);
+            leftSpeed = -leftSpeed;
+            rightSpeed = -rightSpeed;
+        } else if (angleDeg >= 270 && angleDeg < 360) {
+            // Vorwärts, Linksabbiegen: rechter Motor fest, linker steigt exponentiell von 0 (bei 270°) auf 255 (bei 360°).
+            rightSpeed = MAX;
+            leftSpeed = MAX * Math.pow((angleDeg - 270) / 90, speedExponent);
+        }
+    
+        // Skaliere mit dem Distanzmultiplikator (0 in der Mitte, 1 am Rand)
+        leftSpeed *= multiplier;
+        rightSpeed *= multiplier;
+    
+        this.sendMotorCommand(leftSpeed, rightSpeed);
     }
+    
+    
+    
 
-    drawTurningPaths(v, omega) {
+    drawRobotDirection(angle, distance) {
         if (!this.ctx) return;
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
+        
         // Roboter als gelber Punkt am unteren Rand
         this.ctx.fillStyle = 'yellow';
         this.ctx.beginPath();
         this.ctx.arc(this.robotX, this.robotY, 5, 0, 2 * Math.PI);
         this.ctx.fill();
-
-        // Bei gerader Fahrt -> eine gerade Linie nach oben
-        if (Math.abs(omega) < 0.01) {
-            this.ctx.strokeStyle = 'gray';
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            this.ctx.moveTo(this.robotX, this.robotY);
-            this.ctx.lineTo(this.robotX, this.robotY - 80);
-            this.ctx.stroke();
-            return;
-        }
-
-        // Bestimme den Drehkreis des Roboterzentrums
-        const R_center = Math.abs(v / omega);
-        const icrX = (omega > 0)
-            ? this.robotX + R_center * this.canvasScale
-            : this.robotX - R_center * this.canvasScale;
-        const icrY = this.robotY;
-
-        // Positionen der Räder
-        const leftWheelX = this.robotX - (this.WHEEL_BASE / 2) * this.canvasScale;
-        const leftWheelY = this.robotY;
-        const rightWheelX = this.robotX + (this.WHEEL_BASE / 2) * this.canvasScale;
-        const rightWheelY = this.robotY;
-
-        // Startwinkel der Bögen (vom ICR zu den Rädern)
-        const leftStartAngle = Math.atan2(leftWheelY - icrY, leftWheelX - icrX);
-        const rightStartAngle = Math.atan2(rightWheelY - icrY, rightWheelX - icrX);
-        const leftEndAngle = (omega > 0)
-            ? leftStartAngle - this.arcAngle
-            : leftStartAngle + this.arcAngle;
-        const rightEndAngle = (omega > 0)
-            ? rightStartAngle - this.arcAngle
-            : rightStartAngle + this.arcAngle;
-        const anticlockwise = (omega < 0);
-
-        // Zeichne linken Bogen (blau)
-        this.ctx.strokeStyle = 'blue';
+        
+        // Zeichne eine Linie in Richtung des Winkels
+        const lineLength = distance * 80; // Länge proportional zur Entfernung
+        const targetX = this.robotX + Math.sin(angle) * lineLength;
+        const targetY = this.robotY - Math.cos(angle) * lineLength;
+        
+        this.ctx.strokeStyle = 'gray';
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
-        this.ctx.arc(
-            icrX, icrY,
-            Math.hypot(leftWheelX - icrX, leftWheelY - icrY),
-            leftStartAngle, leftEndAngle,
-            anticlockwise
-        );
-        this.ctx.stroke();
-
-        // Zeichne rechten Bogen (grün)
-        this.ctx.strokeStyle = 'green';
-        this.ctx.beginPath();
-        this.ctx.arc(
-            icrX, icrY,
-            Math.hypot(rightWheelX - icrX, rightWheelY - icrY),
-            rightStartAngle, rightEndAngle,
-            anticlockwise
-        );
+        this.ctx.moveTo(this.robotX, this.robotY);
+        this.ctx.lineTo(targetX, targetY);
         this.ctx.stroke();
     }
 
-    sendMotorCommand(leftMotor, rightMotor, leftPfad, rightPfad) {
-        // Konvertiere die berechneten Motorwerte in Richtung und Geschwindigkeit für Arduino.
-        // Wir gehen davon aus, dass leftMotor und rightMotor im Bereich [-MAX_SPEED, MAX_SPEED] liegen.
-        // Bei vorwaerts: positiver Wert, bei rueckwaerts: negativer Wert.
-        let directionLeft, speedLeft, message;
-        if (leftMotor > 0) {
-            directionLeft = "1";
-            speedLeft = Math.min(Math.round(Math.abs(leftMotor) * 255 / this.MAX_SPEED), 255);
-        } else if (leftMotor < 0) {
-            directionLeft = "-1";
-            speedLeft = Math.min(Math.round(Math.abs(leftMotor) * 255 / this.MAX_SPEED), 255);
-        } else {
-            directionLeft = "0";
-            speedLeft = 0;
+    sendMotorCommand(leftSpeed, rightSpeed) {
+        const MIN_MOTOR_SPEED = 50; // Mindestgeschwindigkeit (PWM), falls > 0
+        const MAX_PWM = 255;       // Maximalwert für PWM
+    
+        // Linken Motor verarbeiten
+        let leftDir = "0";
+        let leftPWM = 0;
+        if (leftSpeed !== 0) {
+            leftDir = leftSpeed > 0 ? "1" : "-1";
+            leftPWM = Math.min(Math.round(Math.abs(leftSpeed)), MAX_PWM);
+            if (leftPWM < MIN_MOTOR_SPEED) leftPWM = MIN_MOTOR_SPEED;
         }
-
-        let directionRight, speedRight;
-        if (rightMotor > 0) {
-            directionRight = "1";
-            speedRight = Math.min(Math.round(Math.abs(rightMotor) * 255 / this.MAX_SPEED), 255);
-        } else if (rightMotor < 0) {
-            directionRight = "-1";
-            speedRight = Math.min(Math.round(Math.abs(rightMotor) * 255 / this.MAX_SPEED), 255);
-        } else {
-            directionRight = "0";
-            speedRight = 0;
+    
+        // Rechten Motor verarbeiten
+        let rightDir = "0";
+        let rightPWM = 0;
+        if (rightSpeed !== 0) {
+            rightDir = rightSpeed > 0 ? "1" : "-1";
+            rightPWM = Math.min(Math.round(Math.abs(rightSpeed)), MAX_PWM);
+            if (rightPWM < MIN_MOTOR_SPEED) rightPWM = MIN_MOTOR_SPEED;
         }
-        // Create an array with the 4 values
-        const motors = directionLeft + "," + speedLeft + "," + directionRight + "," + speedRight;
-            
-        // Send the array with a more specific event name
+    
+        // Zusammensetzen des Befehls: z.B. "1,200,-1,150"
+        const motors = `${leftDir},${leftPWM},${rightDir},${rightPWM}`;
         this.socket.emit('motorcommand', motors);
     }
+    
+    
+
 }
 
 document.addEventListener('DOMContentLoaded', () => {

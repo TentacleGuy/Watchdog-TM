@@ -137,14 +137,10 @@ void onMessageCallback(WebsocketsMessage message) {
         sendToServer();  // Update the server with new state
       }
       else if (eventName == "motorcommand") {
-        String jsonString;
         String payload = data.substring(firstComma + 1, data.lastIndexOf(']'));
-        Serial.println(data);
         payload.replace("\"", "");
-        robotData["motors"] = payload;
         Serial.println("Motorcommand received -  payload: " + payload);
-        serializeJson(robotData["motors"], jsonString);
-        sendToMega(payload);
+        sendToMega("motorcommand:" + payload);
       }
 
       else if (eventName == "command") {
