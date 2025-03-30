@@ -6,12 +6,13 @@
 unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
 int messageInterval = 3000;             //intervall in ms	 DEBUG
 
-unsigned long int lastMotorCommand = 0;  //timer für nachrichten  DEBUG 
-int motorInterval = 100;             //intervall in ms	 DEBUG
+unsigned long int lastESPMessageTime = 0;
+const unsigned long ESP_TIMEOUT = 250; // 5 Sekunden Timeout
 
 /*Variablen*/
 String messageFromESP = ""; 
 String messageToESP  = ""; 
+int initialized = 0;
 
 L298N motorL(L_PWM, L_IN1, L_IN2);
 L298N motorR(R_PWM, R_IN1, R_IN2);
@@ -64,15 +65,7 @@ void motorcommand(String values) {
   } else {  // Stopp oder ungültiger Wert
     motorL.stop();
   }
-
-  Serial.print("motor links:" );
-  Serial.print(leftMotorDirection);
-  Serial.print(" ");
-  Serial.println(leftMotorSpeed);
-  Serial.print(" motor rechts:" );
-  Serial.print(rightMotorDirection);
-  Serial.print(" ");
-  Serial.println(rightMotorSpeed);
+  initialized = 0;
 }
 
 void handleCommand(String command, String values){
@@ -106,6 +99,23 @@ void receiveMessage() {
   }
 }
 
+void initialState() {
+  motorL.stop();
+  motorR.stop();
+  
+  Serial.println("Keine Nachricht vom ESP - Zurücksetzen auf Initialzustand");
+  initialized =1;
+}
+
+// Neue Funktion zur Überprüfung der ESP-Kommunikation
+void checkESPConnection() {
+  if (millis() - lastESPMessageTime > ESP_TIMEOUT) {
+    if(initialized == 0){
+      initialState();
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);   //Verbindung zum Computer
   Serial1.begin(9600);    //Verbindung zum ESP
@@ -123,4 +133,6 @@ void loop() {
   }
   //-TESTSendungen ende- */
   receiveMessage();
+  //checkESPConnection();
+
 }

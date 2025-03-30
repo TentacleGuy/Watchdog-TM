@@ -116,6 +116,12 @@ class AnalogStick {
         // Multiplier: 0 in der Mitte, 1 am Rand
         const multiplier = Math.min(distance, 1);
     
+        // Berechne Winkel in Radiant (0 rad = oben)
+        let angleRad = Math.atan2(normalizedX, -normalizedY);
+        // Speichere den Winkel und den Distanzmultiplikator (z.B. distance, begrenzt auf 1)
+        this.lastStickAngle = angleRad;
+        this.lastStickMultiplier = Math.min(Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY), 1);
+
         // Winkel in Grad berechnen – 0° entspricht oben, Winkel steigt im Uhrzeigersinn
         let angleDeg = Math.atan2(normalizedX, -normalizedY) * (180 / Math.PI);
         if (angleDeg < 0) angleDeg += 360;
@@ -151,33 +157,103 @@ class AnalogStick {
         leftSpeed *= multiplier;
         rightSpeed *= multiplier;
     
+        const leftDir = leftSpeed >= 0 ? "1" : "-1";
+        const rightDir = rightSpeed >= 0 ? "1" : "-1";
+
+        // Rufe die Visualisierungsmethode auf:
+        this.drawRobotMovement(Math.abs(leftSpeed), Math.abs(rightSpeed), leftDir, rightDir);
         this.sendMotorCommand(leftSpeed, rightSpeed);
     }
     
-    
-    
-
-    drawRobotDirection(angle, distance) {
+    drawRobotMovement(leftSpeed, rightSpeed, leftDirection, rightDirection) {
         if (!this.ctx) return;
         
-        // Roboter als gelber Punkt am unteren Rand
-        this.ctx.fillStyle = 'yellow';
+        // Canvas leeren
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 1. Roboterposition zeichnen (gelber Kreis)
+        this.ctx.fillStyle = "yellow";
         this.ctx.beginPath();
         this.ctx.arc(this.robotX, this.robotY, 5, 0, 2 * Math.PI);
         this.ctx.fill();
         
-        // Zeichne eine Linie in Richtung des Winkels
-        const lineLength = distance * 80; // Länge proportional zur Entfernung
-        const targetX = this.robotX + Math.sin(angle) * lineLength;
-        const targetY = this.robotY - Math.cos(angle) * lineLength;
+        // 2. Richtungspfeil zeichnen (ausgehend vom Robotermittelpunkt)
+        // Voraussetzung: this.lastStickAngle (in Radiant) und this.lastStickMultiplier (0..1) werden in calculateMotorValues gesetzt.
+        const arrowLength = this.lastStickMultiplier * 100; // Passe diesen Skalierungsfaktor bei Bedarf an
+        const angleRad = this.lastStickAngle;
+        const arrowEndX = this.robotX + arrowLength * Math.sin(angleRad);
+        const arrowEndY = this.robotY - arrowLength * Math.cos(angleRad);
         
-        this.ctx.strokeStyle = 'gray';
+        // Pfeil zeichnen (blaue Linie)
+        this.ctx.strokeStyle = "blue";
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         this.ctx.moveTo(this.robotX, this.robotY);
-        this.ctx.lineTo(targetX, targetY);
+        this.ctx.lineTo(arrowEndX, arrowEndY);
+        this.ctx.stroke();
+        
+        // Optional: Pfeilspitze zeichnen
+        const headLength = 10; // Länge der Pfeilspitze
+        const headAngle = Math.PI / 6; // Winkel der Pfeilspitze
+        let leftHeadX = arrowEndX - headLength * Math.sin(angleRad - headAngle);
+        let leftHeadY = arrowEndY + headLength * Math.cos(angleRad - headAngle);
+        let rightHeadX = arrowEndX - headLength * Math.sin(angleRad + headAngle);
+        let rightHeadY = arrowEndY + headLength * Math.cos(angleRad + headAngle);
+        this.ctx.beginPath();
+        this.ctx.moveTo(arrowEndX, arrowEndY);
+        this.ctx.lineTo(leftHeadX, leftHeadY);
+        this.ctx.moveTo(arrowEndX, arrowEndY);
+        this.ctx.lineTo(rightHeadX, rightHeadY);
+        this.ctx.stroke();
+        
+        // 3. Wendekreis (ICR) zeichnen:
+        // Hier verwenden wir den aus dem Analogstick abgeleiteten Winkel, um den seitlichen Anteil (Turn-Faktor) zu bestimmen.
+        const epsilon = 0.01;
+        // Der Turn-Faktor wird über den Sinus des Winkels ermittelt: Bei 0° (oder 180°) gibt es keine Drehung (sin = 0),
+        // bei 90° bzw. 270° ist die Drehung maximal (sin = ±1)
+        const turningFactor = Math.abs(Math.sin(angleRad));
+        // Wähle einen Basiswert, z. B. das R_min entspricht dem minimalen Wendekreis (kann an deine Geometrie angepasst werden)
+        const R_min = this.WHEEL_BASE * this.canvasScale; 
+        // Für eine kontinuierliche Darstellung: Wenn turningFactor sehr klein ist, wird der Wendekreis sehr groß (fast geradeaus)
+        let R = turningFactor > epsilon ? (R_min / turningFactor) : 1000;
+        // Begrenze R für die Visualisierung, damit er nicht zu extrem wird
+        const R_cap = 1000;
+        if (R > R_cap) R = R_cap;
+        
+        // Bestimme, auf welcher Seite der ICR liegt:
+        // Hier verwenden wir den Winkel (in Grad) aus der Berechnung, bei 0° bis 180° (d.h. forward/right und backward/right) → ICR rechts,
+        // und bei 180° bis 360° → ICR links.
+        let angleDeg = angleRad * (180 / Math.PI);
+        if (angleDeg < 0) angleDeg += 360;
+        const turningSide = (angleDeg < 180) ? 1 : -1;
+        
+        // ICR-Koordinaten: Da unser Roboter immer nach oben zeigt, liegt der ICR horizontal versetzt
+        const icrX = this.robotX + turningSide * R;
+        const icrY = this.robotY;
+        
+        // ICR als kleinen roten Punkt zeichnen
+        this.ctx.fillStyle = "red";
+        this.ctx.beginPath();
+        this.ctx.arc(icrX, icrY, 3, 0, 2 * Math.PI);
+        this.ctx.fill();
+        
+        // Wendekreis zeichnen (roter Kreis, der vom ICR bis zum Roboter reicht)
+        this.ctx.strokeStyle = "red";
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.arc(icrX, icrY, R, 0, 2 * Math.PI);
+        this.ctx.stroke();
+        
+        // Verbindungslinie vom Robotermittelpunkt zum ICR (orange)
+        this.ctx.strokeStyle = "orange";
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.robotX, this.robotY);
+        this.ctx.lineTo(icrX, icrY);
         this.ctx.stroke();
     }
+    
+
 
     sendMotorCommand(leftSpeed, rightSpeed) {
         const MIN_MOTOR_SPEED = 50; // Mindestgeschwindigkeit (PWM), falls > 0
