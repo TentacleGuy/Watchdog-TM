@@ -1,8 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-//#include <HTTPClient.h>
-//#include <ESPAsyncWebServer.h>
-//#include <AsyncTCP.h>
 #include "settings.h"
 #include <ArduinoJson.h>
 #include <ArduinoWebsockets.h>
@@ -14,14 +11,8 @@
 String messageFromMega = ""; 
 String messageToMega  = ""; 
 
-//Timer
-unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
-const int messageInterval = 4000; //intervall in ms	 DEBUG
-
 unsigned long lastHeartbeat = 0;
-const int heartbeatInterval = 5000; // 5 Sekunden
-
-unsigned long lastPing = 0;
+const int heartbeatInterval = 5000;
 
 bool needsReconnection = false;
 unsigned long lastReconnectionAttempt = 0;
@@ -49,7 +40,6 @@ void setupRobotData(){
 
   robotData["light"] =  false;
   robotData["battery"] =  34;
-  robotData["motors"] = "0,0,0,0";
 }
 
 //Kommunkation zwischen Mega und ESP
@@ -59,13 +49,6 @@ void sendToMega(String message) {
   Serial.println(message);                                  //debug
 }
 
-String getFromMega() {
-  if (Serial2.available()) {
-    String message = Serial2.readStringUntil('\n');
-    return message;
-  }
-  return "";
-}
 
 //WLAN-Verbindung herstellen
 bool connectToWlan() {
@@ -99,7 +82,7 @@ bool toggleLight() {
   return false;
 }
 
-void sendToServer() {
+void sendRobotData() {
   String jsonString;
   serializeJson(robotData, jsonString);
   String socketMessage = "42[\"message\",";
@@ -109,9 +92,8 @@ void sendToServer() {
 }
 
 void onMessageCallback(WebsocketsMessage message) {
+
   String data = message.data();
-  Serial.print("Got Message: ");
-  Serial.println(data);
   
   // Handle Socket.IO ping (code 2)
   if (data == "2") {
@@ -134,12 +116,11 @@ void onMessageCallback(WebsocketsMessage message) {
       if (eventName == "toggleLight") {
         Serial.println("Received toggleLight event");
         toggleLight();
-        sendToServer();  // Update the server with new state
+        sendRobotData();  // Update the server with new state
       }
       else if (eventName == "motorcommand") {
         String payload = data.substring(firstComma + 1, data.lastIndexOf(']'));
         payload.replace("\"", "");
-        Serial.println("Motorcommand received -  payload: " + payload);
         sendToMega("motorcommand:" + payload);
       }
 
@@ -148,7 +129,6 @@ void onMessageCallback(WebsocketsMessage message) {
         String payload = data.substring(firstComma + 1, data.lastIndexOf(']'));
         // Remove quotes if present
         payload.replace("\"", "");
-        Serial.println("Command received - payload: " + payload);
 
       }
     }
@@ -172,25 +152,19 @@ bool connectToServer() {
 
 
 void onEventsCallback(WebsocketsEvent event, String data) {
-  Serial.println("neues event:");
-  Serial.print("Data: ");
-  Serial.println(data);
-
   if(event == WebsocketsEvent::ConnectionOpened) {
       Serial.println("Connnection Opened");
       needsReconnection = false;
   } else if(event == WebsocketsEvent::ConnectionClosed) {
       Serial.println("Connnection Closed");
+      sendToMega("motorcommand:0,0,0,0");
       needsReconnection = true;
-
   } else if(event == WebsocketsEvent::GotPing) {
       Serial.println("Got a Ping!");
   } else if(event == WebsocketsEvent::GotPong) {
       Serial.println("Got a Pong!");
   }
 }
-
-
 
 void setupWebsockets() {
 
@@ -213,8 +187,17 @@ void setup() {
   setupRobotData();
   connectToWlan();  
   setupWebsockets();
+  sendToMega("motorcommand:0,0,0,0");
 }
 
+void receiveMegaMessage() {
+  if (Serial2.available()) {
+    String messageFromMega = Serial2.readStringUntil('\n');
+  }
+  if (messageFromMega != "") {
+    Serial.println("Nachricht von Mega empfangen: " + messageFromMega);
+  }
+}
 
 void loop() {
   client.poll();
@@ -236,14 +219,9 @@ void loop() {
 
   if (millis() - lastHeartbeat >= heartbeatInterval) {
     lastHeartbeat = millis();
-    sendToServer();
+    sendRobotData();
   }
-
-  messageFromMega = getFromMega();
-  if (messageFromMega != "") {
-    Serial.println("Nachricht von Mega empfangen: " + messageFromMega);
-  }
-
+  receiveMegaMessage();
 }
 
 

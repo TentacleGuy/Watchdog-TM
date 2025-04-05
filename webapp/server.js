@@ -18,6 +18,10 @@ let controllerQueue = []; // Warteschlange
 const debugMode = true;
 let espSocketId = null;
 
+let lastESPMessageTime = null;
+let espIsOnline = false;
+const ESP_TIMEOUT = 6000; // Timeout
+
 // Statische Dateien
 app.use(express.static(path.join(__dirname, "public")));
   
@@ -62,6 +66,7 @@ io.on("connection", (socket) => {
     }
   }
   
+
   socket.emit("queueTotal", controllerQueue.length);
 
   // Handle ESP connection - ensure this is working
@@ -71,15 +76,14 @@ io.on("connection", (socket) => {
 
     socket.leave("browserRoom");
     socket.join("espRoom");
+    lastESPMessageTime = Date.now();
   });
 
   // Handle robot data from ESP
   socket.on("message", (data) => {
-    console.log("Emitting data from ESP to browserRoom:", data);    
-    // Only forward to browser clients, not back to ESP
-    io.to("browserRoom").emit("robot_data", data);
+      lastESPMessageTime = Date.now();
+        io.to("browserRoom").emit("robot_data", data);
   });
-
 
   // Use the handleCommand function for various command types
   socket.on("command", (data) => handleCommand(socket, "command", data));
@@ -134,6 +138,7 @@ io.on("connection", (socket) => {
   socket.on("leaveQueue", () => {
     if (socket.id === activeController) {
       console.log("Active Controller verlässt die Queue:", socket.id);
+      io.to("espRoom").emit("motorcommand", "0,0,0,0");
       // Kontroller-Slot freigeben
       clearTimeout(controllerTimer);
       controllerTimer = null;
@@ -154,6 +159,7 @@ io.on("connection", (socket) => {
     // Falls das der ESP war
     if (socket.id === espSocketId) {
       console.log("ESP hat getrennt");
+      io.to("browserRoom").emit("esp_status", { online: false });
       espSocketId = null;
     }
 
@@ -281,12 +287,23 @@ function removeFromQueue(socketId) {
   }
 }
 
+function checkESPStatus() {
+    const now = Date.now();
+    if (now - lastESPMessageTime > ESP_TIMEOUT && espIsOnline) {
+      console.log("ESP Timeout - keine Nachricht in den letzten", ESP_TIMEOUT/1000, "Sekunden");
+      espIsOnline = false;
+      io.to("browserRoom").emit("esp_status", { online: false });
+    }
+}
+
 // Periodically update time information
 setInterval(() => {
   if (activeController) {
       broadcastQueueInfo();
   }
 }, 60000); // Update every minute
+
+setInterval(checkESPStatus, 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

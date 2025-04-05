@@ -22,6 +22,14 @@ window.sharedSocket.on('esp_ip', (ip) => {
     document.getElementById('robot_ip').textContent = ip;
 });
 
+
+// Handle ESP status updates
+window.sharedSocket.on('esp_status', (status) => {
+    console.log("esp_status:", status);
+    updateOnlineStatus(status.online);
+});
+
+
 // Handle robot data
 window.sharedSocket.on('robot_data', (data) => {
     //console.log('Received robot data:', data);
@@ -92,7 +100,6 @@ window.sharedSocket.on('disconnect', () => {
     }
 });
 
-
 // Join queue
 function joinQueue() {
     window.sharedSocket.emit("joinQueue");
@@ -102,6 +109,7 @@ function joinQueue() {
 
 // Leave queue
 function leaveQueue() {
+    window.sharedSocket.emit("motorcommand", "0,0,0,0");
     window.sharedSocket.emit("leaveQueue");
     inQueue = false;
     updateQueueDisplay();

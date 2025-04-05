@@ -32,12 +32,12 @@ class AnalogStick {
     setupEventListeners() {
         // Maus-Events
         this.stick.addEventListener('mousedown', e => this.startDragging(e));
-        this.stick.addEventListener('mousemove', e => this.drag(e));
+        document.addEventListener('mousemove', e => this.drag(e));
         document.addEventListener('mouseup', () => this.stopDragging());
 
         // Touch-Events (für mobile Geräte)
         this.stick.addEventListener('touchstart', e => this.startDragging(e));
-        this.stick.addEventListener('touchmove', e => this.drag(e));
+        document.addEventListener('touchmove', e => this.drag(e));
         document.addEventListener('touchend', () => this.stopDragging());
     }
 
@@ -253,8 +253,6 @@ class AnalogStick {
         this.ctx.stroke();
     }
     
-
-
     sendMotorCommand(leftSpeed, rightSpeed) {
         const MIN_MOTOR_SPEED = 50; // Mindestgeschwindigkeit (PWM), falls > 0
         const MAX_PWM = 255;       // Maximalwert für PWM
@@ -281,9 +279,6 @@ class AnalogStick {
         const motors = `${leftDir},${leftPWM},${rightDir},${rightPWM}`;
         this.socket.emit('motorcommand', motors);
     }
-    
-    
-
 }
 
 document.addEventListener('DOMContentLoaded', () => {

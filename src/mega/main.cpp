@@ -2,21 +2,17 @@
 #include "settings.h"
 #include <L298N.h>
 
-
-unsigned long int lastMessageSent = 0;  //timer für nachrichten  DEBUG 
-int messageInterval = 3000;             //intervall in ms	 DEBUG
-
 unsigned long int lastESPMessageTime = 0;
-const unsigned long ESP_TIMEOUT = 250; // 5 Sekunden Timeout
+const unsigned long ESP_TIMEOUT = 5000; // 5 Sekunden Timeout
 
 /*Variablen*/
 String messageFromESP = ""; 
 String messageToESP  = ""; 
 int initialized = 0;
+int commandValues[10];
 
 L298N motorL(L_PWM, L_IN1, L_IN2);
 L298N motorR(R_PWM, R_IN1, R_IN2);
-
 
 void sendMessage(String message) {
   Serial1.println(message);
@@ -25,7 +21,6 @@ void sendMessage(String message) {
 }
 
 int* parseCommand(String command, int numValues) {
-  static int commandValues[10];
   int index = 0;
   while (command.length() > 0 && index < numValues) {
     int commaIndex = command.indexOf(',');
@@ -39,33 +34,35 @@ int* parseCommand(String command, int numValues) {
   return commandValues;
 }
 
+/*
+  values = leftMotorDirection,leftMotorSpeed,rightMotorDirection,rightMotorSpeed   z.b. "1,122,-1,255"
+  commandValues[0] = leftMotorDirection
+  commandValues[1] = leftMotorSpeed
+  commandValues[2] = rightMotorDirection
+  commandValues[3] = rightMotorSpeed
+*/
 void motorcommand(String values) {
-  int* parsedValues = parseCommand(values, 4);
-  int leftMotorDirection = parsedValues[0];
-  int leftMotorSpeed = parsedValues[1];
-  int rightMotorDirection = parsedValues[2];
-  int rightMotorSpeed = parsedValues[3];
+  initialized = 0;
+  parseCommand(values, 4);
 
-  motorL.setSpeed(leftMotorSpeed);
-  motorR.setSpeed(rightMotorSpeed);
+  motorL.setSpeed(commandValues[1]);
+  motorR.setSpeed(commandValues[3]);
 
-
-  if (rightMotorDirection == 1) {
+  if (commandValues[2] == 1) {
     motorR.forward();
-  } else if (rightMotorDirection == -1) {
+  } else if (commandValues[2] == -1) {
     motorR.backward();
   } else {  // Stopp oder ungültiger Wert
     motorR.stop();
   }
   
-  if (leftMotorDirection == 1) {
+  if (commandValues[0] == 1) {
     motorL.forward();
-  } else if (leftMotorDirection == -1) {
+  } else if (commandValues[0] == -1) {
     motorL.backward();
   } else {  // Stopp oder ungültiger Wert
     motorL.stop();
   }
-  initialized = 0;
 }
 
 void handleCommand(String command, String values){
@@ -80,6 +77,7 @@ void handleCommand(String command, String values){
 void receiveMessage() {
   if (Serial1.available()) {
     String message = Serial1.readStringUntil('\n');
+    lastESPMessageTime = millis();
     Serial.print("Mega empfängt von ESP: ");                //debug
     Serial.println(message);                                //debug
     int colonIndex = message.indexOf(':');
@@ -99,11 +97,9 @@ void receiveMessage() {
   }
 }
 
-void initialState() {
+void initialize() {
   motorL.stop();
   motorR.stop();
-  
-  Serial.println("Keine Nachricht vom ESP - Zurücksetzen auf Initialzustand");
   initialized =1;
 }
 
@@ -111,7 +107,8 @@ void initialState() {
 void checkESPConnection() {
   if (millis() - lastESPMessageTime > ESP_TIMEOUT) {
     if(initialized == 0){
-      initialState();
+      Serial.println ("Zurücksetzen auf Initialzustand");
+      initialize();
     }
   }
 }
@@ -120,19 +117,10 @@ void setup() {
   Serial.begin(115200);   //Verbindung zum Computer
   Serial1.begin(9600);    //Verbindung zum ESP
   Serial.println("Mega ist Startklar");//debug
-  motorcommand("0,0,0,0");
+  initialize();
 }
 
 void loop() {
-  /*-TESTSendungen start-
-  if(millis() - lastMessageSent > messageInterval){
-    lastMessageSent = millis(); 
-    unsigned long int elapsedTime = lastMessageSent/1000;
-    messageToESP  = "Hi ESP32, I started " + String(elapsedTime) + " seconds ago";
-    sendMessage(messageToESP);  
-  }
-  //-TESTSendungen ende- */
   receiveMessage();
-  //checkESPConnection();
-
+  checkESPConnection(); 
 }
